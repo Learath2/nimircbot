@@ -1,4 +1,4 @@
-import plugiface, botiface, irc, asyncdispatch
+import plugiface, botiface, irc, asyncdispatch, strutils, future
 import sampleplugin
 
 const
@@ -6,15 +6,15 @@ const
     versionText = "Unnamed Bot v0.0.0.0.0.0.1"
 
 type Bot = ref object of BotInterface
-    ircHandle: PAsycnIrc
+    ircHandle: PAsyncIrc
     channels: seq[string]
     plugins: seq[PluginInterface]
 
 method sendMsg(this: Bot, target, msg: string) = 
-    this.ircHandle.privmsg(target, msg)
+    asyncCheck this.ircHandle.privmsg(target, msg)
 
-proc handleInternalCommands(hnd: PAsycnIrc, event: TIRCEvent, bot: Bot) {.async.} =
-    let msg = ev.params[1]
+proc handleInternalCommands(hnd: PAsyncIrc, event: TIRCEvent, bot: Bot) {.async.} =
+    let msg = event.params[1]
 
     if msg[0] != ',':
         return
@@ -32,7 +32,7 @@ proc handleInternalCommands(hnd: PAsycnIrc, event: TIRCEvent, bot: Bot) {.async.
     else:
         discard
 
-proc handleIrcMsg(hnd: PAsycnIrc, event: TIRCEvent, bot: Bot) {.async.} =
+proc handleIrcMsg(hnd: PAsyncIrc, event: TIRCEvent, bot: Bot) {.async.} =
     case event.cmd
     of MPrivMsg:
         await handleInternalCommands(hnd, event, bot)
@@ -54,32 +54,33 @@ proc handleIrcMsg(hnd: PAsycnIrc, event: TIRCEvent, bot: Bot) {.async.} =
         discard
 
 proc handleIrcEvent(hnd: PAsyncIrc, event: TIRCEvent, bot: Bot) {.async.} =
-    case event.type
+    case event.typ
     of EvConnected:
         discard
     of EvDisconnected:
         await hnd.reconnect()
     of EvMsg:
-        await handleIrcMsg(hnd, event)
+        await handleIrcMsg(hnd, event, bot)
     else:
         discard
 
 proc loadPlugins(bot: Bot) =
-    bot.plugins.add(new(SamplePlugin))
+    bot.plugins.add(PluginInterface(new(SamplePlugin)[]))
 
     for i in bot.plugins:
         i.onLoad(bot)
 
 proc init(): Bot =
-    new(result)
+    var res: Bot
+    new(res)
 
-    result.ircHandle = newAsyncIrc(address: ircServer, nick: "IrcBotTest",
-        user: "IrcBotTest", realname: "IrcBotTest", joinChans: @["#Lea2"],
-        callback: (hnd: PAsyncIrc, ev: TIRCEvent) => (handleIrcEvent(hnd, ev, result)))
+    res.ircHandle = newAsyncIrc(address = ircServer, nick = "IrcBotTest",
+        user = "IrcBotTest", realname = "IrcBotTest", joinChans = @["#Lea2"],
+        callback = (hnd: PAsyncIrc, ev: TIRCEvent) => (handleIrcEvent(hnd, ev, res)))
 
-    loadPlugins(result)
+    loadPlugins(res)
 
-    return result
+    return res
 
 var bot = init()
 asyncCheck bot.ircHandle.run()
