@@ -40,13 +40,13 @@ proc handleIrcMsg(hnd: PAsyncIrc, event: TIRCEvent, bot: Bot) {.async.} =
             i.onPrivMsg(event.origin, event.params[1])
     of MJoin:
         for i in bot.plugins:
-            i.onUserJoin(event.origin, event.params[1])
+            i.onUserJoin(event.origin, event.nick)
     of MPart:
         for i in bot.plugins:
-            i.onUserLeave(event.origin, event.params[1])
+            i.onUserLeave(event.origin, event.nick)
     of MQuit:
         for i in bot.plugins:
-            i.onUserQuit(event.origin, event.params[1])
+            i.onUserQuit(event.origin, event.nick)
     of MTopic:
         for i in bot.plugins:
             i.onTopicChange(event.origin, event.params[1])
@@ -65,7 +65,9 @@ proc handleIrcEvent(hnd: PAsyncIrc, event: TIRCEvent, bot: Bot) {.async.} =
         discard
 
 proc loadPlugins(bot: Bot) =
-    bot.plugins.add(PluginInterface(new(SamplePlugin)[]))
+    bot.plugins = @[]
+    var obj = SamplePlugin()
+    bot.plugins.add(PluginInterface(obj))
 
     for i in bot.plugins:
         i.onLoad(bot)
