@@ -22,13 +22,12 @@ proc handleInternalCommands(hnd: PAsyncIrc, event: TIRCEvent, bot: Bot) {.async.
     let
         tokens = msg.split(' ')
         cmd = tokens[0][1..len(tokens[0])]
-        args = tokens[1..len(tokens)]
 
     case cmd
     of "version":
         sendMsg(bot, event.origin, versionText)
     of "ping":
-        sendMsg(bot, event.origin, "pong")
+        sendMsg(bot, event.origin, "Pong!")
     else:
         discard
 
