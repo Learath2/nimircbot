@@ -29,6 +29,8 @@ proc handleInternalCommands(hnd: PAsycnIrc, event: TIRCEvent, bot: Bot) {.async.
         sendMsg(bot, event.origin, versionText)
     of "ping":
         sendMsg(bot, event.origin, "pong")
+    else:
+        discard
 
 proc handleIrcMsg(hnd: PAsycnIrc, event: TIRCEvent, bot: Bot) {.async.} =
     case event.cmd
