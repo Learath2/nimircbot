@@ -1,6 +1,6 @@
 import plugiface, botiface
 
-type SamplePlugin* = ref object of PluginInterface
+type SamplePlugin = ref object of PluginInterface
     botif: BotInterface
 
 method onLoad(this: SamplePlugin, hnd: BotInterface) =
@@ -8,3 +8,6 @@ method onLoad(this: SamplePlugin, hnd: BotInterface) =
 
 method onPrivMsg(this: SamplePlugin, origin, msg: string) = 
     this.botif.sendMsg(origin,"Got msg: "&msg)
+
+proc newSamplePlugin*(): PluginInterface {.procvar.}=
+    return PluginInterface(SamplePlugin())

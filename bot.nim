@@ -1,4 +1,4 @@
-import plugiface, botiface, irc, asyncdispatch, strutils, future
+import plugiface, botiface, irc, asyncdispatch, strutils, future, tables
 import sampleplugin
 
 const
@@ -8,10 +8,20 @@ const
 type Bot = ref object of BotInterface
     ircHandle: PAsyncIrc
     channels: seq[string]
-    plugins: seq[PluginInterface]
+    allplugins: Table[string, (void -> PluginInterface)]
+    loadedplugins: Table[string, PluginInterface]
 
 method sendMsg(this: Bot, target, msg: string) = 
     asyncCheck this.ircHandle.privmsg(target, msg)
+
+proc loadPlugin(bot: Bot, name: string) =
+    echo("Loading plugin ", name)
+    echo(repr(bot.allplugins[name]))
+    var hnd: PluginInterface = bot.allplugins[name]()
+    bot.loadedplugins[name] = hnd
+
+proc unloadPlugin(bot: Bot, name: string) =
+    bot.loadedplugins.del(name)
 
 proc handleInternalCommands(hnd: PAsyncIrc, event: TIRCEvent, bot: Bot) {.async.} =
     let msg = event.params[1]
@@ -25,9 +35,19 @@ proc handleInternalCommands(hnd: PAsyncIrc, event: TIRCEvent, bot: Bot) {.async.
 
     case cmd
     of "version":
-        sendMsg(bot, event.origin, versionText)
+        bot.sendMsg(event.origin, versionText)
     of "ping":
-        sendMsg(bot, event.origin, "Pong!")
+        bot.sendMsg(event.origin, "Pong!")
+    of "loadplugin":
+        if tokens.len > 0:
+            bot.loadPlugin(tokens[1])
+        else:
+            bot.sendMsg(event.origin, "Command requires arguments!")
+    of "unloadplugin":
+        if tokens.len > 0:
+            bot.unloadPlugin(tokens[1])
+        else:
+            bot.sendMsg(event.origin, "Command requires arguments!")
     else:
         discard
 
@@ -35,19 +55,19 @@ proc handleIrcMsg(hnd: PAsyncIrc, event: TIRCEvent, bot: Bot) {.async.} =
     case event.cmd
     of MPrivMsg:
         await handleInternalCommands(hnd, event, bot)
-        for i in bot.plugins:
+        for i in bot.loadedplugins.values:
             i.onPrivMsg(event.origin, event.params[1])
     of MJoin:
-        for i in bot.plugins:
+        for i in bot.loadedplugins.values:
             i.onUserJoin(event.origin, event.nick)
     of MPart:
-        for i in bot.plugins:
+        for i in bot.loadedplugins.values:
             i.onUserLeave(event.origin, event.nick)
     of MQuit:
-        for i in bot.plugins:
+        for i in bot.loadedplugins.values:
             i.onUserQuit(event.origin, event.nick)
     of MTopic:
-        for i in bot.plugins:
+        for i in bot.loadedplugins.values:
             i.onTopicChange(event.origin, event.params[1])
     else:
         discard
@@ -63,12 +83,8 @@ proc handleIrcEvent(hnd: PAsyncIrc, event: TIRCEvent, bot: Bot) {.async.} =
     else:
         discard
 
-proc loadPlugins(bot: Bot) =
-    bot.plugins = @[]
-    bot.plugins.add(PluginInterface(SamplePlugin()))
-
-    for i in bot.plugins:
-        i.onLoad(bot)
+proc populatePlugins(bot: Bot) =
+    bot.allplugins["sampleplugin"]= newSamplePlugin
 
 proc init(): Bot =
     var res: Bot
@@ -78,7 +94,10 @@ proc init(): Bot =
         user = "IrcBotTest", realname = "IrcBotTest", joinChans = @["#Lea2"],
         callback = (hnd: PAsyncIrc, ev: TIRCEvent) => (handleIrcEvent(hnd, ev, res)))
 
-    loadPlugins(res)
+    res.allplugins = initTable[string, (void -> PluginInterface)]()
+    res.loadedplugins = initTable[string, PluginInterface]()
+
+    populatePlugins(res)
 
     return res
 
