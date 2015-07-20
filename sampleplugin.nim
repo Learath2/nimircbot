@@ -10,4 +10,6 @@ method onPrivMsg(this: SamplePlugin, origin, msg: string) =
     this.botif.sendMsg(origin,"Got msg: "&msg)
 
 proc newSamplePlugin*(): PluginInterface {.procvar.}=
-    return PluginInterface(SamplePlugin())
+    var res: SamplePlugin
+    new(res)
+    return PluginInterface(res)

@@ -15,12 +15,12 @@ method sendMsg(this: Bot, target, msg: string) =
     asyncCheck this.ircHandle.privmsg(target, msg)
 
 proc loadPlugin(bot: Bot, name: string) =
-    echo("Loading plugin ", name)
-    echo(repr(bot.allplugins[name]))
     var hnd: PluginInterface = bot.allplugins[name]()
     bot.loadedplugins[name] = hnd
+    bot.loadedplugins[name].onLoad(bot)
 
 proc unloadPlugin(bot: Bot, name: string) =
+    bot.loadedplugins[name].onUnload()
     bot.loadedplugins.del(name)
 
 proc handleInternalCommands(hnd: PAsyncIrc, event: TIRCEvent, bot: Bot) {.async.} =
@@ -54,9 +54,9 @@ proc handleInternalCommands(hnd: PAsyncIrc, event: TIRCEvent, bot: Bot) {.async.
 proc handleIrcMsg(hnd: PAsyncIrc, event: TIRCEvent, bot: Bot) {.async.} =
     case event.cmd
     of MPrivMsg:
-        await handleInternalCommands(hnd, event, bot)
         for i in bot.loadedplugins.values:
             i.onPrivMsg(event.origin, event.params[1])
+        await handleInternalCommands(hnd, event, bot)
     of MJoin:
         for i in bot.loadedplugins.values:
             i.onUserJoin(event.origin, event.nick)

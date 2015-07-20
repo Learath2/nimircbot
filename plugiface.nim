@@ -6,6 +6,9 @@ type PluginInterface* = ref object of RootObj
 method onLoad*(this: PluginInterface, hnd: BotInterface) =
     discard
 
+method onUnload*(this: PluginInterface) =
+    discard
+
 method onPrivMsg*(this: PluginInterface, orig, msg: string) = 
     discard
 
