@@ -65,8 +65,7 @@ proc handleIrcEvent(hnd: PAsyncIrc, event: TIRCEvent, bot: Bot) {.async.} =
 
 proc loadPlugins(bot: Bot) =
     bot.plugins = @[]
-    var obj = SamplePlugin()
-    bot.plugins.add(PluginInterface(obj))
+    bot.plugins.add(PluginInterface(SamplePlugin()))
 
     for i in bot.plugins:
         i.onLoad(bot)
