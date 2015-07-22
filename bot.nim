@@ -6,37 +6,41 @@ const
     ircServer = "irc.quakenet.org"
     versionText = "Unnamed Bot v0.0.0.0.0.0.1"
 
-type Bot = ref object of BotInterface
-    ircHandle: PAsyncIrc
-    channels: seq[string]
-    allplugins: Table[string, (void -> PluginInterface)]
-    loadedplugins: Table[string, PluginInterface]
+type 
+    Bot = ref object of BotInterface
+        ircHandle: PAsyncIrc
+        channels: seq[string]
+        allplugins: Table[string, (void -> PluginInterface)]
+        loadedplugins: Table[string, PluginInterface]
+
+    Error = enum
+        success, errorNotfound, errorLoaded
 
 method sendMsg(this: Bot, target, msg: string) = 
     asyncCheck this.ircHandle.privmsg(target, msg)
 
-proc loadPlugin(bot: Bot, name: string): int =
+proc loadPlugin(bot: Bot, name: string): Error =
     if not bot.allplugins.hasKey(name):         #Plugin doesn't exist
-        return -1
+        return errorNotfound
     elif bot.loadedplugins.hasKey(name):    #Plugin already loaded
-        return 1
+        return errorLoaded
 
     var hnd: PluginInterface = bot.allplugins[name]()
     bot.loadedplugins[name] = hnd
     bot.loadedplugins[name].onLoad(bot)
 
-    return 0
+    return success
 
-proc unloadPlugin(bot: Bot, name: string): int =
+proc unloadPlugin(bot: Bot, name: string): Error =
     if not bot.allplugins.hasKey(name):         #Plugin doesn't exist
-        return -1
+        return errorNotfound
     elif not bot.loadedplugins.hasKey(name):    #PLugin not loaded
-        return 1
+        return errorLoaded
 
     bot.loadedplugins[name].onUnload()
     bot.loadedplugins.del(name)
 
-    return 0
+    return success
 
 proc handleInternalCommands(hnd: PAsyncIrc, event: TIRCEvent, bot: Bot) {.async.} =
     let msg = event.params[1]
@@ -56,22 +60,22 @@ proc handleInternalCommands(hnd: PAsyncIrc, event: TIRCEvent, bot: Bot) {.async.
     of "loadplugin":
         if tokens.len > 0:
             case bot.loadPlugin(tokens[1])
-            of 0:
+            of success:
                 bot.sendMsg(event.origin, tokens[1]&" Loaded")
-            of -1:
+            of errorNotfound:
                 bot.sendMsg(event.origin, "Plugin "&tokens[1]&" not found")
-            of 1:
+            of errorLoaded:
                 bot.sendMsg(event.origin, tokens[1]&" already loaded")
         else:
             bot.sendMsg(event.origin, "Command requires arguments")
     of "unloadplugin":
         if tokens.len > 0:
             case bot.unloadPlugin(tokens[1])
-            of -1:
+            of errorNotfound:
                 bot.sendMsg(event.origin, "Plugin "&tokens[1]&" not found")
-            of  1:
+            of  errorLoaded:
                 bot.sendMsg(event.origin, tokens[1]&" isn't loaded")
-            of  0:
+            of  success:
                 bot.sendMsg(event.origin, tokens[1]&" Unloaded")
         else:
             bot.sendMsg(event.origin, "Command requires arguments")
