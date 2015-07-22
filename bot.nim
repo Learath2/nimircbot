@@ -2,6 +2,7 @@ import plugiface, botiface, irc, asyncdispatch, strutils, future, tables
 import sampleplugin
 
 const
+    nick = "NimIrcBot"
     ircServer = "irc.quakenet.org"
     versionText = "Unnamed Bot v0.0.0.0.0.0.1"
 
@@ -14,14 +15,28 @@ type Bot = ref object of BotInterface
 method sendMsg(this: Bot, target, msg: string) = 
     asyncCheck this.ircHandle.privmsg(target, msg)
 
-proc loadPlugin(bot: Bot, name: string) =
+proc loadPlugin(bot: Bot, name: string): int =
+    if not bot.allplugins.hasKey(name):         #Plugin doesn't exist
+        return -1
+    elif bot.loadedplugins.hasKey(name):    #Plugin already loaded
+        return 1
+
     var hnd: PluginInterface = bot.allplugins[name]()
     bot.loadedplugins[name] = hnd
     bot.loadedplugins[name].onLoad(bot)
 
-proc unloadPlugin(bot: Bot, name: string) =
+    return 0
+
+proc unloadPlugin(bot: Bot, name: string): int =
+    if not bot.allplugins.hasKey(name):         #Plugin doesn't exist
+        return -1
+    elif not bot.loadedplugins.hasKey(name):    #PLugin not loaded
+        return 1
+
     bot.loadedplugins[name].onUnload()
     bot.loadedplugins.del(name)
+
+    return 0
 
 proc handleInternalCommands(hnd: PAsyncIrc, event: TIRCEvent, bot: Bot) {.async.} =
     let msg = event.params[1]
@@ -40,18 +55,31 @@ proc handleInternalCommands(hnd: PAsyncIrc, event: TIRCEvent, bot: Bot) {.async.
         bot.sendMsg(event.origin, "Pong!")
     of "loadplugin":
         if tokens.len > 0:
-            bot.loadPlugin(tokens[1])
+            case bot.loadPlugin(tokens[1])
+            of 0:
+                bot.sendMsg(event.origin, tokens[1]&" Loaded")
+            of -1:
+                bot.sendMsg(event.origin, "Plugin "&tokens[1]&" not found")
+            of 1:
+                bot.sendMsg(event.origin, tokens[1]&" already loaded")
         else:
-            bot.sendMsg(event.origin, "Command requires arguments!")
+            bot.sendMsg(event.origin, "Command requires arguments")
     of "unloadplugin":
         if tokens.len > 0:
-            bot.unloadPlugin(tokens[1])
+            case bot.unloadPlugin(tokens[1])
+            of -1:
+                bot.sendMsg(event.origin, "Plugin "&tokens[1]&" not found")
+            of  1:
+                bot.sendMsg(event.origin, tokens[1]&" isn't loaded")
+            of  0:
+                bot.sendMsg(event.origin, tokens[1]&" Unloaded")
         else:
-            bot.sendMsg(event.origin, "Command requires arguments!")
+            bot.sendMsg(event.origin, "Command requires arguments")
     else:
         discard
 
 proc handleIrcMsg(hnd: PAsyncIrc, event: TIRCEvent, bot: Bot) {.async.} =
+    #Call every plugins hooks
     case event.cmd
     of MPrivMsg:
         for i in bot.loadedplugins.values:
@@ -90,13 +118,15 @@ proc init(): Bot =
     var res: Bot
     new(res)
 
-    res.ircHandle = newAsyncIrc(address = ircServer, nick = "IrcBotTest",
-        user = "IrcBotTest", realname = "IrcBotTest", joinChans = @["#Lea2"],
+    res.ircHandle = newAsyncIrc(address = ircServer, nick = nick,
+        user = nick, realname = nick, joinChans = @["#Lea2"],
         callback = (hnd: PAsyncIrc, ev: TIRCEvent) => (handleIrcEvent(hnd, ev, res)))
 
+    #Initialize plugin tables
     res.allplugins = initTable[string, (void -> PluginInterface)]()
     res.loadedplugins = initTable[string, PluginInterface]()
 
+    #Load all internal plugins
     populatePlugins(res)
 
     return res
