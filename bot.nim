@@ -1,5 +1,5 @@
-import plugiface, botiface, irc, asyncdispatch, strutils, future, tables
-import sampleplugin
+import botiface, irc, asyncdispatch, strutils, future, tables
+import sampleplugin, sharedplugin
 
 const
     nick = "NimIrcBot"
@@ -18,6 +18,12 @@ type
 
 method sendMsg(this: Bot, target, msg: string) = 
     asyncCheck this.ircHandle.privmsg(target, msg)
+
+method getPluginHandle(this: Bot, name: string): PluginInterface =
+    if this.loadedplugins.hasKey(name):
+        return this.loadedplugins[name]
+    else:
+        return nil
 
 proc loadPlugin(bot: Bot, name: string): Error =
     if not bot.allplugins.hasKey(name):         #Plugin doesn't exist
@@ -117,6 +123,7 @@ proc handleIrcEvent(hnd: PAsyncIrc, event: TIRCEvent, bot: Bot) {.async.} =
 
 proc populatePlugins(bot: Bot) =
     bot.allplugins["sampleplugin"]= newSamplePlugin
+    bot.allplugins["sharedplugin"]= newSharedPlugin
 
 proc init(): Bot =
     var res: Bot
